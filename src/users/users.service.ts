@@ -14,17 +14,15 @@ export class UsersService {
   }
 
   createUser(input: {
-    fullName: string;
+    fullName?: string;
     email: string;
     passwordHash: string;
-    phone?: string;
   }) {
     return this.prisma.user.create({
       data: {
         fullName: input.fullName,
         email: input.email,
         passwordHash: input.passwordHash,
-        phone: input.phone,
       },
     });
   }

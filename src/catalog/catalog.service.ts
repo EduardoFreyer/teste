@@ -27,9 +27,7 @@ export class CatalogService {
 
   async createCategory(adminId: string, input: CategoryCreateInput) {
     try {
-      const category = await this.prisma.category.create({
-        data: input,
-      });
+      const category = await this.prisma.category.create({ data: input });
 
       await this.auditService.register({
         actorUserId: adminId,
@@ -47,13 +45,12 @@ export class CatalogService {
 
   async listCategories(query: AdminListQueryInput) {
     const where: Prisma.CategoryWhereInput = {
-      name: query.search
-        ? {
-            contains: query.search,
-            mode: 'insensitive',
-          }
+      OR: query.search
+        ? [
+            { name: { contains: query.search, mode: 'insensitive' } },
+            { slug: { contains: query.search, mode: 'insensitive' } },
+          ]
         : undefined,
-      isActive: query.isActive,
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -61,17 +58,12 @@ export class CatalogService {
         where,
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { name: 'asc' },
       }),
       this.prisma.category.count({ where }),
     ]);
 
-    return {
-      items,
-      page: query.page,
-      pageSize: query.pageSize,
-      total,
-    };
+    return { items, page: query.page, pageSize: query.pageSize, total };
   }
 
   async updateCategory(adminId: string, categoryId: string, input: CategoryUpdateInput) {
@@ -97,72 +89,38 @@ export class CatalogService {
     }
   }
 
-  async updateCategoryStatus(adminId: string, categoryId: string, isActive: boolean) {
-    const category = await this.prisma.category.update({
-      where: { id: categoryId },
-      data: { isActive },
+  async createProduct(adminId: string, input: ProductCreateInput) {
+    await this.ensureCategoryExists(input.categoryId);
+
+    const product = await this.prisma.product.create({
+      data: {
+        name: input.name,
+        description: input.description,
+        basePrice: new Prisma.Decimal(input.basePrice),
+        categoryId: input.categoryId,
+        isActive: input.isActive,
+      },
+      include: { category: true },
     });
 
     await this.auditService.register({
       actorUserId: adminId,
-      action: 'CATEGORY_STATUS_UPDATE',
-      resource: 'CATEGORY',
-      resourceId: categoryId,
-      metadata: { isActive },
+      action: 'PRODUCT_CREATE',
+      resource: 'PRODUCT',
+      resourceId: product.id,
+      metadata: { categoryId: product.categoryId },
     });
 
-    return category;
-  }
-
-  async createProduct(adminId: string, input: ProductCreateInput) {
-    await this.ensureCategoriesExist(input.categoryIds);
-
-    try {
-      const product = await this.prisma.product.create({
-        data: {
-          name: input.name,
-          slug: input.slug,
-          description: input.description,
-          priceCents: input.priceCents,
-          stockQuantity: input.stockQuantity,
-          isActive: input.isActive,
-          categories: {
-            createMany: {
-              data: input.categoryIds.map((categoryId) => ({ categoryId })),
-            },
-          },
-        },
-        include: {
-          categories: {
-            include: { category: true },
-          },
-        },
-      });
-
-      await this.auditService.register({
-        actorUserId: adminId,
-        action: 'PRODUCT_CREATE',
-        resource: 'PRODUCT',
-        resourceId: product.id,
-        metadata: { categoryIds: input.categoryIds },
-      });
-
-      return product;
-    } catch (error) {
-      this.handlePrismaError(error, 'Produto já cadastrado com este slug');
-    }
+    return product;
   }
 
   async listProducts(query: AdminListQueryInput, categoryId?: string) {
     const where: Prisma.ProductWhereInput = {
       name: query.search
-        ? {
-            contains: query.search,
-            mode: 'insensitive',
-          }
+        ? { contains: query.search, mode: 'insensitive' }
         : undefined,
       isActive: query.isActive,
-      categories: categoryId ? { some: { categoryId } } : undefined,
+      categoryId,
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -172,28 +130,23 @@ export class CatalogService {
         take: query.pageSize,
         orderBy: { createdAt: 'desc' },
         include: {
-          categories: { include: { category: true } },
-          images: { orderBy: { position: 'asc' } },
+          category: true,
+          images: true,
           options: true,
         },
       }),
       this.prisma.product.count({ where }),
     ]);
 
-    return {
-      items,
-      page: query.page,
-      pageSize: query.pageSize,
-      total,
-    };
+    return { items, page: query.page, pageSize: query.pageSize, total };
   }
 
   async getProductById(productId: string) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: {
-        categories: { include: { category: true } },
-        images: { orderBy: { position: 'asc' } },
+        category: true,
+        images: true,
         options: true,
       },
     });
@@ -207,46 +160,34 @@ export class CatalogService {
 
   async updateProduct(adminId: string, productId: string, input: ProductUpdateInput) {
     await this.ensureProductExists(productId);
-    if (input.categoryIds) {
-      await this.ensureCategoriesExist(input.categoryIds);
+    if (input.categoryId) {
+      await this.ensureCategoryExists(input.categoryId);
     }
 
-    try {
-      const product = await this.prisma.$transaction(async (tx) => {
-        const updated = await tx.product.update({
-          where: { id: productId },
-          data: {
-            name: input.name,
-            slug: input.slug,
-            description: input.description,
-            priceCents: input.priceCents,
-            stockQuantity: input.stockQuantity,
-            isActive: input.isActive,
-          },
-        });
+    const product = await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        name: input.name,
+        description: input.description,
+        basePrice:
+          input.basePrice !== undefined
+            ? new Prisma.Decimal(input.basePrice)
+            : undefined,
+        categoryId: input.categoryId,
+        isActive: input.isActive,
+      },
+      include: { category: true },
+    });
 
-        if (input.categoryIds) {
-          await tx.productCategory.deleteMany({ where: { productId } });
-          await tx.productCategory.createMany({
-            data: input.categoryIds.map((categoryId) => ({ productId, categoryId })),
-          });
-        }
+    await this.auditService.register({
+      actorUserId: adminId,
+      action: 'PRODUCT_UPDATE',
+      resource: 'PRODUCT',
+      resourceId: productId,
+      metadata: input,
+    });
 
-        return updated;
-      });
-
-      await this.auditService.register({
-        actorUserId: adminId,
-        action: 'PRODUCT_UPDATE',
-        resource: 'PRODUCT',
-        resourceId: productId,
-        metadata: input,
-      });
-
-      return product;
-    } catch (error) {
-      this.handlePrismaError(error, 'Falha ao atualizar produto');
-    }
+    return product;
   }
 
   async updateProductStatus(adminId: string, productId: string, isActive: boolean) {
@@ -273,10 +214,8 @@ export class CatalogService {
       data: {
         productId,
         type: input.type,
-        label: input.label,
         value: input.value,
-        priceDelta: input.priceDelta,
-        isActive: input.isActive,
+        priceDelta: new Prisma.Decimal(input.priceDelta),
       },
     });
 
@@ -301,7 +240,14 @@ export class CatalogService {
 
     const option = await this.prisma.productOption.update({
       where: { id: optionId },
-      data: input,
+      data: {
+        type: input.type,
+        value: input.value,
+        priceDelta:
+          input.priceDelta !== undefined
+            ? new Prisma.Decimal(input.priceDelta)
+            : undefined,
+      },
     });
 
     await this.auditService.register({
@@ -336,8 +282,6 @@ export class CatalogService {
       data: {
         productId,
         url: input.url,
-        alt: input.alt,
-        position: input.position,
       },
     });
 
@@ -362,7 +306,7 @@ export class CatalogService {
 
     const image = await this.prisma.productImage.update({
       where: { id: imageId },
-      data: input,
+      data: { url: input.url },
     });
 
     await this.auditService.register({
@@ -388,17 +332,6 @@ export class CatalogService {
       resourceId: imageId,
       metadata: { productId },
     });
-  }
-
-  private async ensureCategoriesExist(categoryIds: string[]) {
-    const categories = await this.prisma.category.findMany({
-      where: { id: { in: categoryIds } },
-      select: { id: true },
-    });
-
-    if (categories.length !== categoryIds.length) {
-      throw new BadRequestException('Uma ou mais categorias são inválidas');
-    }
   }
 
   private async ensureCategoryExists(categoryId: string) {

@@ -19,7 +19,6 @@ import {
   adminListQuerySchema,
   AdminListQueryInput,
   categoryCreateSchema,
-  categoryStatusSchema,
   CategoryCreateInput,
   categoryUpdateSchema,
   CategoryUpdateInput,
@@ -32,6 +31,7 @@ import {
   optionUpdateSchema,
   OptionUpdateInput,
   productCreateSchema,
+  productStatusSchema,
   ProductCreateInput,
   productUpdateSchema,
   ProductUpdateInput,
@@ -69,15 +69,6 @@ export class CatalogController {
     return this.catalogService.updateCategory(user.sub, id, body);
   }
 
-  @Patch('categories/:id/status')
-  @UsePipes(new ZodValidationPipe(categoryStatusSchema))
-  updateCategoryStatus(
-    @CurrentUser() user: { sub: string },
-    @Param('id') id: string,
-    @Body() body: { isActive: boolean },
-  ) {
-    return this.catalogService.updateCategoryStatus(user.sub, id, body.isActive);
-  }
 
   @Post('products')
   @UsePipes(new ZodValidationPipe(productCreateSchema))
@@ -113,7 +104,7 @@ export class CatalogController {
   }
 
   @Patch('products/:id/status')
-  @UsePipes(new ZodValidationPipe(categoryStatusSchema))
+  @UsePipes(new ZodValidationPipe(productStatusSchema))
   updateProductStatus(
     @CurrentUser() user: { sub: string },
     @Param('id') id: string,

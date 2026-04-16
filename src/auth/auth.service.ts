@@ -39,7 +39,6 @@ export class AuthService {
       fullName: input.fullName,
       email: input.email,
       passwordHash,
-      phone: input.phone,
     });
 
     return {
@@ -51,7 +50,7 @@ export class AuthService {
 
   async login(input: LoginInput) {
     const user = await this.usersService.findByEmail(input.email);
-    if (!user || !user.isActive) {
+    if (!user) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 

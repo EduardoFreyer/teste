@@ -40,7 +40,6 @@ Back-end em **NestJS + Prisma + MySQL** com baseline de segurança para e-commer
 - `POST /api/admin/categories`
 - `GET /api/admin/categories`
 - `PATCH /api/admin/categories/:id`
-- `PATCH /api/admin/categories/:id/status`
 - `POST /api/admin/products`
 - `GET /api/admin/products`
 - `GET /api/admin/products/:id`

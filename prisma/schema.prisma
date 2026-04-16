@@ -8,158 +8,146 @@ datasource db {
 }
 
 enum UserRole {
-  CUSTOMER
+  CLIENTE
   ADMIN
+
+  @@map("Usuario_tipo")
 }
 
 enum OrderStatus {
-  CREATED
-  AWAITING_PAYMENT
-  PAID
-  SHIPPED
-  DELIVERED
-  CANCELED
-  REFUNDED
-}
+  PENDENTE
+  PAGO
+  EM_PRODUCAO
+  ENVIADO
+  ENTREGUE
+  CANCELADO
 
-enum ProductOptionType {
-  BOW_COLOR
-  FONT
-  SEED_TYPE
-  TAG
-  BAG
-  OTHER
+  @@map("Pedido_status")
 }
 
 model User {
   id            String         @id @default(cuid())
-  fullName      String
-  email         String         @unique
-  phone         String?
-  passwordHash  String
-  role          UserRole       @default(CUSTOMER)
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  fullName      String?        @map("nome")
+  email         String         @unique(map: "Usuario_email_key")
+  passwordHash  String         @map("senha")
+  role          UserRole       @default(CLIENTE) @map("tipo")
+  createdAt     DateTime       @default(now()) @map("criadoEm") @db.DateTime(3)
+  updatedAt     DateTime       @updatedAt @map("atualizadoEm") @db.DateTime(3)
   addresses     Address[]
   orders        Order[]
   refreshTokens RefreshToken[]
   auditLogs     AdminAuditLog[]
+
+  @@index([role], map: "Usuario_tipo_idx")
+  @@map("Usuario")
 }
 
 model Address {
-  id           String   @id @default(cuid())
-  userId       String
-  label        String?
-  recipient    String
-  zipCode      String
-  street       String
-  number       String
-  complement   String?
-  district     String
-  city         String
-  state        String
-  isDefault    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id])
+  id         String   @id @default(cuid())
+  userId     String   @map("usuarioId")
+  street     String   @map("logradouro")
+  number     String   @map("numero")
+  complement String?  @map("complemento")
+  district   String   @map("bairro")
+  city       String   @map("cidade")
+  state      String   @map("estado")
+  zipCode    String   @map("cep")
+  isDefault  Boolean  @default(false) @map("principal")
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "Endereco_usuarioId_idx")
+  @@map("Endereco")
 }
 
 model Category {
-  id        String            @id @default(cuid())
-  name      String
-  slug      String            @unique
-  isActive  Boolean           @default(true)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  products  ProductCategory[]
+  id        String   @id @default(cuid())
+  name      String   @map("nome") @unique(map: "Categoria_nome_key")
+  slug      String   @unique(map: "Categoria_slug_key")
+  products  Product[]
+
+  @@map("Categoria")
 }
 
 model Product {
-  id            String            @id @default(cuid())
-  name          String
-  slug          String            @unique
-  description   String            @db.Text
-  priceCents    Int
-  stockQuantity Int               @default(0)
-  isActive      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  categories    ProductCategory[]
-  images        ProductImage[]
-  options       ProductOption[]
-  orderItems    OrderItem[]
-}
+  id          String          @id @default(cuid())
+  name        String          @map("nome")
+  description String          @map("descricao") @db.Text
+  basePrice   Decimal         @map("precoBase") @db.Decimal(10, 2)
+  categoryId  String          @map("categoriaId")
+  isActive    Boolean         @default(true) @map("ativo")
+  createdAt   DateTime        @default(now()) @map("criadoEm") @db.DateTime(3)
+  updatedAt   DateTime        @updatedAt @map("atualizadoEm") @db.DateTime(3)
+  category    Category        @relation(fields: [categoryId], references: [id])
+  images      ProductImage[]
+  options     ProductOption[]
+  orderItems  OrderItem[]
 
-model ProductCategory {
-  productId  String
-  categoryId String
-  createdAt  DateTime @default(now())
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@id([productId, categoryId])
-  @@index([categoryId])
+  @@index([categoryId], map: "Produto_categoriaId_idx")
+  @@index([isActive], map: "Produto_ativo_idx")
+  @@map("Produto")
 }
 
 model ProductImage {
   id        String   @id @default(cuid())
-  productId String
   url       String
-  alt       String?
-  position  Int      @default(0)
-  createdAt DateTime @default(now())
+  productId String   @map("produtoId")
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId], map: "ImagemProduto_produtoId_idx")
+  @@map("ImagemProduto")
 }
 
 model ProductOption {
-  id         String            @id @default(cuid())
-  productId  String
-  type       ProductOptionType
-  label      String
-  value      String
-  priceDelta Int               @default(0)
-  isActive   Boolean           @default(true)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  productId  String   @map("produtoId")
+  type       String   @map("tipo")
+  value      String   @map("valor")
+  priceDelta Decimal  @default(0) @map("acrescimoPreco") @db.Decimal(10, 2)
+  product    Product  @relation(fields: [productId], references: [id])
 
-  @@unique([productId, type, value])
-  @@index([productId, type, isActive])
+  @@index([productId], map: "OpcaoProduto_produtoId_idx")
+  @@map("OpcaoProduto")
 }
 
 model Order {
-  id                String      @id @default(cuid())
-  userId            String
-  shippingAddressId String
-  status            OrderStatus @default(CREATED)
-  subtotalCents     Int
-  freightCents      Int
-  discountCents     Int         @default(0)
-  totalCents        Int
-  marketplaceRef    String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  user              User        @relation(fields: [userId], references: [id])
-  shippingAddress   Address     @relation(fields: [shippingAddressId], references: [id])
-  items             OrderItem[]
+  id              String      @id @default(cuid())
+  userId          String      @map("usuarioId")
+  status          OrderStatus @default(PENDENTE)
+  total           Decimal     @db.Decimal(10, 2)
+  shippingCost    Decimal     @map("custoFrete") @db.Decimal(10, 2)
+  shippingMethod  String      @map("metodoFrete")
+  paymentMethod   String      @map("metodoPagamento")
+  transactionId   String?     @map("transacaoId")
+  createdAt       DateTime    @default(now()) @map("criadoEm") @db.DateTime(3)
+  updatedAt       DateTime    @updatedAt @map("atualizadoEm") @db.DateTime(3)
+  user            User        @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+
+  @@index([userId], map: "Pedido_usuarioId_idx")
+  @@index([status], map: "Pedido_status_idx")
+  @@index([createdAt], map: "Pedido_criadoEm_idx")
+  @@map("Pedido")
 }
 
 model OrderItem {
-  id                String   @id @default(cuid())
-  orderId           String
-  productId         String
-  quantity          Int
-  unitPriceCents    Int
-  personalizedName  String?
-  bowColor          String?
-  seedType          String?
-  tagType           String?
-  bagType           String?
-  customizationsRaw Json?
-  createdAt         DateTime @default(now())
-  order             Order    @relation(fields: [orderId], references: [id])
-  product           Product  @relation(fields: [productId], references: [id])
+  id                 String   @id @default(cuid())
+  orderId            String   @map("pedidoId")
+  productId          String   @map("produtoId")
+  quantity           Int      @map("quantidade")
+  unitPrice          Decimal  @map("precoUnitario") @db.Decimal(10, 2)
+  personalizedName   String?  @map("nomePersonalizado")
+  customColor        String?  @map("corPersonalizada")
+  customFont         String?  @map("fontePersonalizada")
+  customSeed         String?  @map("sementePersonalizada")
+  customBow          String?  @map("lacoPersonalizado")
+  customBag          String?  @map("saquinhoPersonalizado")
+  customTag          String?  @map("tagPersonalizada")
+  order              Order    @relation(fields: [orderId], references: [id])
+  product            Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId], map: "ItemPedido_pedidoId_idx")
+  @@index([productId], map: "ItemPedido_produtoId_idx")
+  @@map("ItemPedido")
 }
 
 model RefreshToken {
