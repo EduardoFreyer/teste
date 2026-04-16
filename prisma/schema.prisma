@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CLIENTE
+  ADMIN
+
+  @@map("Usuario_tipo")
+}
+
+enum OrderStatus {
+  PENDENTE
+  PAGO
+  EM_PRODUCAO
+  ENVIADO
+  ENTREGUE
+  CANCELADO
+
+  @@map("Pedido_status")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  fullName      String?        @map("nome")
+  email         String         @unique(map: "Usuario_email_key")
+  passwordHash  String         @map("senha")
+  role          UserRole       @default(CLIENTE) @map("tipo")
+  createdAt     DateTime       @default(now()) @map("criadoEm") @db.DateTime(3)
+  updatedAt     DateTime       @updatedAt @map("atualizadoEm") @db.DateTime(3)
+  addresses     Address[]
+  orders        Order[]
+  refreshTokens RefreshToken[]
+  auditLogs     AdminAuditLog[]
+
+  @@index([role], map: "Usuario_tipo_idx")
+  @@map("Usuario")
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String   @map("usuarioId")
+  street     String   @map("logradouro")
+  number     String   @map("numero")
+  complement String?  @map("complemento")
+  district   String   @map("bairro")
+  city       String   @map("cidade")
+  state      String   @map("estado")
+  zipCode    String   @map("cep")
+  isDefault  Boolean  @default(false) @map("principal")
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "Endereco_usuarioId_idx")
+  @@map("Endereco")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @map("nome") @unique(map: "Categoria_nome_key")
+  slug      String   @unique(map: "Categoria_slug_key")
+  products  Product[]
+
+  @@map("Categoria")
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  name        String          @map("nome")
+  description String          @map("descricao") @db.Text
+  basePrice   Decimal         @map("precoBase") @db.Decimal(10, 2)
+  categoryId  String          @map("categoriaId")
+  isActive    Boolean         @default(true) @map("ativo")
+  createdAt   DateTime        @default(now()) @map("criadoEm") @db.DateTime(3)
+  updatedAt   DateTime        @updatedAt @map("atualizadoEm") @db.DateTime(3)
+  category    Category        @relation(fields: [categoryId], references: [id])
+  images      ProductImage[]
+  options     ProductOption[]
+  orderItems  OrderItem[]
+
+  @@index([categoryId], map: "Produto_categoriaId_idx")
+  @@index([isActive], map: "Produto_ativo_idx")
+  @@map("Produto")
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  url       String
+  productId String   @map("produtoId")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId], map: "ImagemProduto_produtoId_idx")
+  @@map("ImagemProduto")
+}
+
+model ProductOption {
+  id         String   @id @default(cuid())
+  productId  String   @map("produtoId")
+  type       String   @map("tipo")
+  value      String   @map("valor")
+  priceDelta Decimal  @default(0) @map("acrescimoPreco") @db.Decimal(10, 2)
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId], map: "OpcaoProduto_produtoId_idx")
+  @@map("OpcaoProduto")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String      @map("usuarioId")
+  status          OrderStatus @default(PENDENTE)
+  total           Decimal     @db.Decimal(10, 2)
+  shippingCost    Decimal     @map("custoFrete") @db.Decimal(10, 2)
+  shippingMethod  String      @map("metodoFrete")
+  paymentMethod   String      @map("metodoPagamento")
+  transactionId   String?     @map("transacaoId")
+  createdAt       DateTime    @default(now()) @map("criadoEm") @db.DateTime(3)
+  updatedAt       DateTime    @updatedAt @map("atualizadoEm") @db.DateTime(3)
+  user            User        @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+
+  @@index([userId], map: "Pedido_usuarioId_idx")
+  @@index([status], map: "Pedido_status_idx")
+  @@index([createdAt], map: "Pedido_criadoEm_idx")
+  @@map("Pedido")
+}
+
+model OrderItem {
+  id                 String   @id @default(cuid())
+  orderId            String   @map("pedidoId")
+  productId          String   @map("produtoId")
+  quantity           Int      @map("quantidade")
+  unitPrice          Decimal  @map("precoUnitario") @db.Decimal(10, 2)
+  personalizedName   String?  @map("nomePersonalizado")
+  customColor        String?  @map("corPersonalizada")
+  customFont         String?  @map("fontePersonalizada")
+  customSeed         String?  @map("sementePersonalizada")
+  customBow          String?  @map("lacoPersonalizado")
+  customBag          String?  @map("saquinhoPersonalizado")
+  customTag          String?  @map("tagPersonalizada")
+  order              Order    @relation(fields: [orderId], references: [id])
+  product            Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId], map: "ItemPedido_pedidoId_idx")
+  @@index([productId], map: "ItemPedido_produtoId_idx")
+  @@map("ItemPedido")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenId   String   @unique
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, revokedAt])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User     @relation(fields: [actorUserId], references: [id])
+
+  @@index([actorUserId, createdAt])
+}
