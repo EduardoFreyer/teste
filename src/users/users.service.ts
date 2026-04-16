@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
@@ -7,11 +6,11 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   findByEmail(email: string) {
-    return this.prisma.usuario.findUnique({ where: { email } });
+    return this.prisma.user.findUnique({ where: { email } });
   }
 
   findById(id: string) {
-    return this.prisma.usuario.findUnique({ where: { id } });
+    return this.prisma.user.findUnique({ where: { id } });
   }
 
   createUser(input: {
@@ -20,13 +19,12 @@ export class UsersService {
     passwordHash: string;
     phone?: string;
   }) {
-    return this.prisma.usuario.create({
+    return this.prisma.user.create({
       data: {
-        id: randomUUID(),
-        nome: input.fullName,
+        fullName: input.fullName,
         email: input.email,
-        senha: input.passwordHash,
-        atualizadoEm: new Date(),
+        passwordHash: input.passwordHash,
+        phone: input.phone,
       },
     });
   }

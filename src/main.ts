@@ -14,7 +14,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: configService.get<string>('APP_CORS_ORIGIN', 'http://localhost:3000'),
+    origin: configService.getOrThrow<string>('APP_CORS_ORIGIN'),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
@@ -28,7 +28,7 @@ async function bootstrap() {
     }),
   );
 
-  const port = configService.get<number>('APP_PORT', 3001);
+  const port = configService.getOrThrow<number>('APP_PORT');
   await app.listen(port);
 }
 

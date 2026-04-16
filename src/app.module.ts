@@ -1,23 +1,27 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { validateEnv } from './common/schemas/env.schema';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv,
+    }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => [
         {
-          ttl: configService.get<number>('THROTTLE_TTL_SECONDS', 60) * 1000,
-          limit: configService.get<number>('THROTTLE_LIMIT', 100),
+          ttl: configService.getOrThrow<number>('THROTTLE_TTL_SECONDS') * 1000,
+          limit: configService.getOrThrow<number>('THROTTLE_LIMIT'),
         },
       ],
     }),
@@ -25,6 +29,7 @@ import { UsersModule } from './users/users.module';
     AuditModule,
     UsersModule,
     AuthModule,
+    CatalogModule,
     HealthModule,
   ],
   providers: [

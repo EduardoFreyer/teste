@@ -10,6 +10,7 @@ import {
   UsePipes,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -35,6 +36,7 @@ export class AuthController {
     return this.authService.register(body);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(200)
   @Post('login')
   @UsePipes(new ZodValidationPipe(loginSchema))
@@ -45,6 +47,7 @@ export class AuthController {
     return { accessToken: tokens.accessToken };
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(200)
   @Post('refresh')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
@@ -73,15 +76,22 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.logout(user.sub);
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', {
+      path: '/api/auth/refresh',
+    });
   }
 
   private setRefreshCookie(res: Response, token: string) {
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
+    const sameSite = this.configService.get<'lax' | 'strict' | 'none'>(
+      'JWT_REFRESH_COOKIE_SAMESITE',
+      'lax',
+    );
+
     res.cookie('refreshToken', token, {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'lax',
+      sameSite,
       path: '/api/auth/refresh',
       maxAge: this.configService.get<number>('JWT_REFRESH_COOKIE_MAX_AGE_MS', 15 * 24 * 60 * 60 * 1000),
     });

@@ -5,10 +5,10 @@ services:
     container_name: maria-paparico-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: maria_paparico
-      MYSQL_USER: root
-      MYSQL_PASSWORD: 123456
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
     ports:
       - '3306:3306'
     command: --default-authentication-plugin=caching_sha2_password

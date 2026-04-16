@@ -11,11 +11,17 @@ interface AuditInput {
 
 @Injectable()
 export class AuditService {
-  constructor(private readonly prisma: PrismaService) {
-    void this.prisma;
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async register(event: AuditInput) {
-    void event;
+    await this.prisma.adminAuditLog.create({
+      data: {
+        actorUserId: event.actorUserId,
+        action: event.action,
+        resource: event.resource,
+        resourceId: event.resourceId,
+        metadata: event.metadata ?? {},
+      },
+    });
   }
 }

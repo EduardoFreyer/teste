@@ -4,19 +4,19 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../database/prisma.service';
 import { UsersService } from '../users/users.service';
 import { LoginInput, RegisterInput } from '../common/schemas/auth.schemas';
-
-type ExpiresIn = NonNullable<JwtSignOptions['expiresIn']>;
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
@@ -45,22 +45,22 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
-      fullName: user.nome,
+      fullName: user.fullName,
     };
   }
 
   async login(input: LoginInput) {
     const user = await this.usersService.findByEmail(input.email);
-    if (!user) {
+    if (!user || !user.isActive) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    const isPasswordValid = await argon2.verify(user.senha, input.password);
+    const isPasswordValid = await argon2.verify(user.passwordHash, input.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    const tokens = await this.issueTokens(user.id, user.email, user.tipo);
+    const tokens = await this.issueTokens(user.id, user.email, user.role);
     await this.auditService.register({
       actorUserId: user.id,
       action: 'AUTH_LOGIN',
@@ -72,21 +72,46 @@ export class AuthService {
   }
 
   async refresh(userId: string, refreshToken: string) {
-    const payload = await this.verifyRefreshToken(refreshToken);
-    if (!payload?.sub || payload.sub !== userId || payload.typ !== 'refresh') {
+    const activeToken = await this.prisma.refreshToken.findFirst({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!activeToken) {
       throw new UnauthorizedException('Refresh token inválido');
     }
+
+    const validToken = await argon2.verify(activeToken.tokenHash, refreshToken);
+    if (!validToken) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Token reutilizado detectado');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: activeToken.id },
+      data: { revokedAt: new Date() },
+    });
 
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException('Usuário não encontrado');
     }
 
-    return this.issueTokens(user.id, user.email, user.tipo);
+    return this.issueTokens(user.id, user.email, user.role);
   }
 
-  async logout(_userId: string) {
-    return;
+  async logout(userId: string) {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
   }
 
   private async issueTokens(userId: string, email: string, role: string) {
@@ -97,9 +122,25 @@ export class AuthService {
       { sub: userId, tokenId: refreshTokenId, role, typ: 'refresh' },
       {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.getOrThrow<ExpiresIn>('JWT_REFRESH_EXPIRES_IN'),
+        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '15d'),
       },
     );
+
+    const refreshTokenHash = await argon2.hash(refreshToken, {
+      type: argon2.argon2id,
+    });
+
+    const refreshDays = this.configService.get<number>('JWT_REFRESH_EXPIRES_DAYS', 15);
+    const expiresAt = new Date(Date.now() + refreshDays * 24 * 60 * 60 * 1000);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        tokenHash: refreshTokenHash,
+        tokenId: refreshTokenId,
+        expiresAt,
+      },
+    });
 
     return { accessToken, refreshToken };
   }

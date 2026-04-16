@@ -36,6 +36,23 @@ Back-end em **NestJS + Prisma + MySQL** com baseline de segurança para e-commer
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 
+## Endpoints admin (catálogo)
+- `POST /api/admin/categories`
+- `GET /api/admin/categories`
+- `PATCH /api/admin/categories/:id`
+- `PATCH /api/admin/categories/:id/status`
+- `POST /api/admin/products`
+- `GET /api/admin/products`
+- `GET /api/admin/products/:id`
+- `PATCH /api/admin/products/:id`
+- `PATCH /api/admin/products/:id/status`
+- `POST /api/admin/products/:id/options`
+- `PATCH /api/admin/products/:id/options/:optionId`
+- `DELETE /api/admin/products/:id/options/:optionId`
+- `POST /api/admin/products/:id/images`
+- `PATCH /api/admin/products/:id/images/:imageId`
+- `DELETE /api/admin/products/:id/images/:imageId`
+
 ## Segurança implementada na base
 - Helmet
 - CORS restrito
