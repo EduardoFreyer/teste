@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  CREATED
+  AWAITING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELED
+  REFUNDED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  fullName      String
+  email         String         @unique
+  phone         String?
+  passwordHash  String
+  role          UserRole       @default(CUSTOMER)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  addresses     Address[]
+  orders        Order[]
+  refreshTokens RefreshToken[]
+  auditLogs     AdminAuditLog[]
+}
+
+model Address {
+  id           String   @id @default(cuid())
+  userId       String
+  label        String?
+  recipient    String
+  zipCode      String
+  street       String
+  number       String
+  complement   String?
+  district     String
+  city         String
+  state        String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model Product {
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  description   String          @db.Text
+  priceCents    Int
+  stockQuantity Int             @default(0)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  images        ProductImage[]
+  options       ProductOption[]
+  orderItems    OrderItem[]
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  alt       String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model ProductOption {
+  id         String   @id @default(cuid())
+  productId  String
+  name       String
+  value      String
+  priceDelta Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id])
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  userId            String
+  shippingAddressId String
+  status            OrderStatus @default(CREATED)
+  subtotalCents     Int
+  freightCents      Int
+  discountCents     Int         @default(0)
+  totalCents        Int
+  marketplaceRef    String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  user              User        @relation(fields: [userId], references: [id])
+  shippingAddress   Address     @relation(fields: [shippingAddressId], references: [id])
+  items             OrderItem[]
+}
+
+model OrderItem {
+  id                String   @id @default(cuid())
+  orderId           String
+  productId         String
+  quantity          Int
+  unitPriceCents    Int
+  personalizedName  String?
+  bowColor          String?
+  seedType          String?
+  tagType           String?
+  bagType           String?
+  customizationsRaw Json?
+  createdAt         DateTime @default(now())
+  order             Order    @relation(fields: [orderId], references: [id])
+  product           Product  @relation(fields: [productId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenId   String   @unique
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, revokedAt])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User     @relation(fields: [actorUserId], references: [id])
+
+  @@index([actorUserId, createdAt])
+}
