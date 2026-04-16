@@ -1,7 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -28,8 +27,6 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
-
-  app.useGlobalGuards(app.get(ThrottlerGuard));
 
   const port = configService.get<number>('APP_PORT', 3001);
   await app.listen(port);

@@ -7,147 +7,130 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  CUSTOMER
-  ADMIN
+model categoria {
+  id      String    @id
+  nome    String    @unique(map: "Categoria_nome_key")
+  slug    String    @unique(map: "Categoria_slug_key")
+  produto produto[]
 }
 
-enum OrderStatus {
-  CREATED
-  AWAITING_PAYMENT
-  PAID
-  SHIPPED
-  DELIVERED
-  CANCELED
-  REFUNDED
+model endereco {
+  id          String  @id
+  usuarioId   String
+  logradouro  String
+  numero      String
+  complemento String?
+  bairro      String
+  cidade      String
+  estado      String
+  cep         String
+  principal   Boolean @default(false)
+  usuario     usuario @relation(fields: [usuarioId], references: [id], map: "Endereco_usuarioId_fkey")
+
+  @@index([usuarioId], map: "Endereco_usuarioId_idx")
 }
 
-model User {
-  id            String         @id @default(cuid())
-  fullName      String
-  email         String         @unique
-  phone         String?
-  passwordHash  String
-  role          UserRole       @default(CUSTOMER)
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  addresses     Address[]
-  orders        Order[]
-  refreshTokens RefreshToken[]
-  auditLogs     AdminAuditLog[]
-}
-
-model Address {
-  id           String   @id @default(cuid())
-  userId       String
-  label        String?
-  recipient    String
-  zipCode      String
-  street       String
-  number       String
-  complement   String?
-  district     String
-  city         String
-  state        String
-  isDefault    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id])
-}
-
-model Product {
-  id            String          @id @default(cuid())
-  name          String
-  slug          String          @unique
-  description   String          @db.Text
-  priceCents    Int
-  stockQuantity Int             @default(0)
-  isActive      Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  images        ProductImage[]
-  options       ProductOption[]
-  orderItems    OrderItem[]
-}
-
-model ProductImage {
-  id        String   @id @default(cuid())
-  productId String
+model imagemproduto {
+  id        String  @id
   url       String
-  alt       String?
-  position  Int      @default(0)
-  createdAt DateTime @default(now())
-  product   Product  @relation(fields: [productId], references: [id])
+  produtoId String
+  produto   produto @relation(fields: [produtoId], references: [id], onDelete: Cascade, map: "ImagemProduto_produtoId_fkey")
+
+  @@index([produtoId], map: "ImagemProduto_produtoId_idx")
 }
 
-model ProductOption {
-  id         String   @id @default(cuid())
-  productId  String
-  name       String
-  value      String
-  priceDelta Int      @default(0)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  product    Product  @relation(fields: [productId], references: [id])
+model itempedido {
+  id                    String  @id
+  pedidoId              String
+  produtoId             String
+  quantidade            Int
+  precoUnitario         Decimal @db.Decimal(10, 2)
+  nomePersonalizado     String?
+  corPersonalizada      String?
+  fontePersonalizada    String?
+  sementePersonalizada  String?
+  lacoPersonalizado     String?
+  saquinhoPersonalizado String?
+  tagPersonalizada      String?
+  pedido                pedido  @relation(fields: [pedidoId], references: [id], map: "ItemPedido_pedidoId_fkey")
+  produto               produto @relation(fields: [produtoId], references: [id], map: "ItemPedido_produtoId_fkey")
+
+  @@index([pedidoId], map: "ItemPedido_pedidoId_idx")
+  @@index([produtoId], map: "ItemPedido_produtoId_idx")
 }
 
-model Order {
-  id                String      @id @default(cuid())
-  userId            String
-  shippingAddressId String
-  status            OrderStatus @default(CREATED)
-  subtotalCents     Int
-  freightCents      Int
-  discountCents     Int         @default(0)
-  totalCents        Int
-  marketplaceRef    String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  user              User        @relation(fields: [userId], references: [id])
-  shippingAddress   Address     @relation(fields: [shippingAddressId], references: [id])
-  items             OrderItem[]
+model opcaoproduto {
+  id             String  @id
+  produtoId      String
+  tipo           String
+  valor          String
+  acrescimoPreco Decimal @default(0.00) @db.Decimal(10, 2)
+  produto        produto @relation(fields: [produtoId], references: [id], map: "OpcaoProduto_produtoId_fkey")
+
+  @@index([produtoId], map: "OpcaoProduto_produtoId_idx")
 }
 
-model OrderItem {
-  id                String   @id @default(cuid())
-  orderId           String
-  productId         String
-  quantity          Int
-  unitPriceCents    Int
-  personalizedName  String?
-  bowColor          String?
-  seedType          String?
-  tagType           String?
-  bagType           String?
-  customizationsRaw Json?
-  createdAt         DateTime @default(now())
-  order             Order    @relation(fields: [orderId], references: [id])
-  product           Product  @relation(fields: [productId], references: [id])
+model pedido {
+  id              String        @id
+  usuarioId       String
+  status          pedido_status @default(PENDENTE)
+  total           Decimal       @db.Decimal(10, 2)
+  custoFrete      Decimal       @db.Decimal(10, 2)
+  metodoFrete     String
+  metodoPagamento String
+  transacaoId     String?
+  criadoEm        DateTime      @default(now())
+  atualizadoEm    DateTime
+  itempedido      itempedido[]
+  usuario         usuario       @relation(fields: [usuarioId], references: [id], map: "Pedido_usuarioId_fkey")
+
+  @@index([criadoEm], map: "Pedido_criadoEm_idx")
+  @@index([status], map: "Pedido_status_idx")
+  @@index([usuarioId], map: "Pedido_usuarioId_idx")
 }
 
-model RefreshToken {
-  id        String   @id @default(cuid())
-  tokenId   String   @unique
-  userId    String
-  tokenHash String
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+model produto {
+  id            String          @id
+  nome          String
+  descricao     String          @db.Text
+  precoBase     Decimal         @db.Decimal(10, 2)
+  categoriaId   String
+  ativo         Boolean         @default(true)
+  criadoEm      DateTime        @default(now())
+  atualizadoEm  DateTime
+  imagemproduto imagemproduto[]
+  itempedido    itempedido[]
+  opcaoproduto  opcaoproduto[]
+  categoria     categoria       @relation(fields: [categoriaId], references: [id], map: "Produto_categoriaId_fkey")
 
-  @@index([userId, revokedAt])
+  @@index([ativo], map: "Produto_ativo_idx")
+  @@index([categoriaId], map: "Produto_categoriaId_idx")
 }
 
-model AdminAuditLog {
-  id          String   @id @default(cuid())
-  actorUserId String
-  action      String
-  resource    String
-  resourceId  String?
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  actor       User     @relation(fields: [actorUserId], references: [id])
+model usuario {
+  id           String       @id
+  nome         String?
+  email        String       @unique(map: "Usuario_email_key")
+  senha        String
+  tipo         usuario_tipo @default(CLIENTE)
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime
+  endereco     endereco[]
+  pedido       pedido[]
 
-  @@index([actorUserId, createdAt])
+  @@index([tipo], map: "Usuario_tipo_idx")
+}
+
+enum pedido_status {
+  PENDENTE
+  PAGO
+  EM_PRODUCAO
+  ENVIADO
+  ENTREGUE
+  CANCELADO
+}
+
+enum usuario_tipo {
+  CLIENTE
+  ADMIN
 }

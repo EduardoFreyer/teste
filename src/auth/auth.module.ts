@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, type JwtSignOptions } from '@nestjs/jwt';
 import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+
+type ExpiresIn = NonNullable<JwtSignOptions['expiresIn']>
 
 @Module({
   imports: [
@@ -16,7 +18,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_ACCESS_EXPIRES_IN', '10m'),
+          expiresIn: configService.getOrThrow<ExpiresIn>('JWT_ACCESS_EXPIRES_IN'),
         },
       }),
     }),
