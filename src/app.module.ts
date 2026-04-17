@@ -5,6 +5,10 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { ShippingModule } from './shipping/shipping.module';
+import { StorefrontModule } from './storefront/storefront.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { AccountModule } from './account/account.module';
 import { validateEnv } from './common/schemas/env.schema';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
@@ -30,6 +34,10 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     AuthModule,
     CatalogModule,
+    StorefrontModule,
+    ShippingModule,
+    CheckoutModule,
+    AccountModule,
     HealthModule,
   ],
   providers: [

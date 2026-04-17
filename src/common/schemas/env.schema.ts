@@ -12,6 +12,8 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_DAYS: z.coerce.number().int().positive().default(15),
   JWT_REFRESH_COOKIE_MAX_AGE_MS: z.coerce.number().int().positive().default(1296000000),
   JWT_REFRESH_COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  MELHOR_ENVIO_API_URL: z.string().url().optional(),
+  MELHOR_ENVIO_TOKEN: z.string().optional(),
   THROTTLE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
   THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
 });
